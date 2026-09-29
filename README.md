@@ -1,5 +1,7 @@
 # Within Reach
 ![Within Reach poster](output/figures/within_reach_poster.png)
+**[Try the live app →](https://01a0ee6a-97e7-2695-7bb6-f897551993b8.share.connect.posit.cloud/)** · Search any of 11,422 cities and see whether it beats the odds.
+
 **Money buys hospitals; compactness buys access.**
 A #TidyTuesday (2026, week 39) analysis of hospital and pharmacy access in 11,422 urban centres, using the GHS Urban Centre Database R2024A (European Commission JRC).
 
