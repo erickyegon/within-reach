@@ -1,5 +1,5 @@
 # Within Reach
-
+![Within Reach poster](output/figures/within_reach_poster.png)
 **Money buys hospitals; compactness buys access.**
 A #TidyTuesday (2026, week 39) analysis of hospital and pharmacy access in 11,422 urban centres, using the GHS Urban Centre Database R2024A (European Commission JRC).
 
