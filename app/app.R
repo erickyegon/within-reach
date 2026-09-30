@@ -43,13 +43,44 @@ ordinal <- function(p) {
   paste0(n, suf)
 }
 
+# World Map lenses: which column to colour by, how to print it, and what it means.
+# `scale` is a 3-stop colour scale; the diverging one is centred on zero.
+metric_spec <- list(
+  gap = list(
+    col = "median_gap", title = "Median gap vs comparable cities (percentage points)",
+    short = "Gap (pts)", fmt = \(x) sprintf("%+.1f pts", x), axis = ".0f",
+    scale = list(c(0, "#D1495B"), c(.5, "#EEF0F2"), c(1, "#1F9E89")), sym = TRUE,
+    blurb = paste("Each city is compared with peers of the same income group and density band; the map",
+                  "shows the country's median gap. Teal = residents are closer to hospitals than in",
+                  "similar cities elsewhere; red = further.")),
+  access = list(
+    col = "access_w", title = "Residents within 1 km of a hospital",
+    short = "Within 1 km", fmt = \(x) percent(x, accuracy = 1), axis = ".0%",
+    scale = list(c(0, "#EEF3F8"), c(.5, "#7FA0C2"), c(1, "#2E4A6B")), sym = FALSE,
+    blurb = paste("Share of urban residents (cities of the selected size) living within a 1 km straight",
+                  "line of a mapped hospital, weighted by city population. Compact cities score high",
+                  "regardless of wealth.")),
+  h100 = list(
+    col = "h100_median", title = "Hospitals per 100,000 residents (median city)",
+    short = "Per 100k", fmt = \(x) sprintf("%.1f", x), axis = ".1f",
+    scale = list(c(0, "#EEF3F8"), c(.5, "#7FA0C2"), c(1, "#2E4A6B")), sym = FALSE,
+    blurb = paste("Median across the country's cities. Counts are indicative only: most are even numbers,",
+                  "which suggests facilities were recorded twice.")),
+  coverage = list(
+    col = "coverage", title = "Cities with any hospital data",
+    short = "Coverage", fmt = \(x) percent(x, accuracy = 1), axis = ".0%",
+    scale = list(c(0, "#FBEAEA"), c(.5, "#E9A03B"), c(1, "#2E4A6B")), sym = FALSE,
+    blurb = paste("Low coverage means the open map is thin, not that hospitals are missing.",
+                  "Read every other lens with this one beside it."))
+)
+
 # Consistent plotly styling
-style_plotly <- function(p, ...) {
+style_plotly <- function(p, ..., legend = list(orientation = "h", x = 0, y = 1.12),
+                         margin = list(l = 10, r = 10, t = 10, b = 10)) {
   p |>
     layout(font = list(family = "Inter, system-ui, sans-serif", size = 12, color = "#2b2b2b"),
            paper_bgcolor = "rgba(0,0,0,0)", plot_bgcolor = "rgba(0,0,0,0)",
-           legend = list(orientation = "h", x = 0, y = 1.12),
-           margin = list(l = 10, r = 10, t = 10, b = 10), ...) |>
+           legend = legend, margin = margin, ...) |>
     config(displaylogo = FALSE,
            modeBarButtonsToRemove = c("lasso2d", "select2d", "autoScale2d"))
 }
@@ -92,7 +123,7 @@ sidebar_filters <- sidebar(
               selected = 1e5),
   hr(),
   div(class = "footer-note",
-      p("Filters apply to the Story, Beating the Odds, and Hospitals vs Pharmacies tabs."),
+      p("Filters apply to the Story, Beating the Odds, World Map, and Hospitals vs Pharmacies tabs."),
       p("Data: GHS Urban Centre Database R2024A (EC JRC), via #TidyTuesday 2026 week 39."))
 )
 
@@ -166,6 +197,38 @@ ui <- page_navbar(
         nav_panel("Falling short",   reactableOutput("t_bottom"))
       )
     )
+  ),
+
+  # ---------------- Tab: World Map ----------------
+  nav_panel(
+    "World Map", icon = bs_icon("globe-americas"), value = "map_tab",
+    p(class = "lede mt-2",
+      "Where does walking access to a hospital beat the odds, and where does it fall short? ",
+      "Switch the lens to see access, the gap against comparable cities, hospital density, ",
+      "or how much of the map is simply missing. ", tags$b("Click a country for its cities.")),
+    layout_columns(
+      col_widths = c(8, 4), fill = FALSE,
+      radioButtons("map_metric", NULL, inline = TRUE, selected = "gap",
+                   choices = c("Beats the odds?" = "gap",
+                               "Walking access" = "access",
+                               "Hospitals per 100k" = "h100",
+                               "Data coverage" = "coverage")),
+      sliderInput("map_min", "Minimum cities per country", min = 1, max = 20,
+                  value = 5, step = 1, ticks = FALSE)
+    ),
+    layout_columns(
+      col_widths = c(7, 5),
+      card(full_screen = TRUE,
+           card_header(textOutput("map_title", inline = TRUE)),
+           plotlyOutput("p_map", height = 420),
+           uiOutput("map_blurb")),
+      card(full_screen = TRUE,
+           card_header("Highest and lowest countries"),
+           plotlyOutput("p_map_rank", height = 420),
+           caveat("Bars are coloured by the country's most common income group. ",
+                  "Small countries swing widely; raise the minimum cities to steady the ranking."))
+    ),
+    uiOutput("map_country_card")
   ),
 
   # ---------------- Tab 3: Your City ----------------
@@ -432,6 +495,134 @@ server <- function(input, output, session) {
                            selected = ev$customdata, server = TRUE)
       nav_select("main", "city_tab")
     }
+  })
+
+  # ---- World Map ----
+  # Re-aggregated from city rows (not precomputed) so the sidebar filters apply.
+  country_agg <- reactive({
+    filt() |>
+      group_by(iso3) |>                      # Cyprus + Northern Cyprus share one code
+      summarise(
+        country     = names(which.max(table(country))),
+        n_frame     = n(),
+        n_scored    = sum(has_hosp),
+        coverage    = n_scored / n_frame,
+        income      = names(which.max(table(income_label))),
+        access_w    = if (any(has_hosp)) weighted.mean(hosp_share_1km[has_hosp], pop[has_hosp]) else NA_real_,
+        median_gap  = if (any(has_hosp)) median(gap_pp[has_hosp]) else NA_real_,
+        h100_median = if (any(!is.na(hosp_per_100k))) median(hosp_per_100k, na.rm = TRUE) else NA_real_,
+        .groups = "drop")
+  })
+
+  map_spec <- reactive(metric_spec[[req(input$map_metric)]])
+
+  map_data <- reactive({
+    m <- map_spec(); k <- input$map_min
+    d <- country_agg()
+    d <- if (input$map_metric == "coverage") filter(d, n_frame >= k) else filter(d, n_scored >= k)
+    d |>
+      mutate(value = .data[[m$col]]) |>
+      filter(!is.na(value)) |>
+      mutate(hover = sprintf("<b>%s</b><br>%s: %s<br>%d cities, %d with hospital data<br>%s",
+                             country, m$short, m$fmt(value), n_frame, n_scored, income))
+  })
+
+  output$map_title <- renderText(map_spec()$title)
+  output$map_blurb <- renderUI(caveat(map_spec()$blurb,
+                                      " Grey = too few cities or no data for the current filters."))
+
+  output$p_map <- renderPlotly({
+    d <- map_data(); m <- map_spec()
+    validate(need(nrow(d) > 0, "No countries meet these filters. Lower the minimum cities."))
+    zr <- if (m$sym) { r <- max(abs(quantile(d$value, c(.02, .98)))); c(-r, r) }
+          else quantile(d$value, c(0, .98), names = FALSE)
+    plot_ly(d, type = "choropleth", locations = ~iso3, locationmode = "ISO-3",
+            z = ~pmin(pmax(value, zr[1]), zr[2]), zmin = zr[1], zmax = zr[2],
+            colorscale = m$scale, text = ~hover, hoverinfo = "text",
+            marker = list(line = list(color = "white", width = .4)),
+            colorbar = list(title = "", len = .55, thickness = 12, tickformat = m$axis),
+            source = "map") |>
+      layout(geo = list(projection = list(type = "natural earth"),
+                        lataxis = list(range = c(-56, 84)),
+                        showframe = FALSE, showcoastlines = FALSE, showcountries = TRUE,
+                        countrycolor = "white", showland = TRUE, landcolor = "#DADDE1",
+                        bgcolor = "rgba(0,0,0,0)")) |>
+      style_plotly() |>
+      event_register("plotly_click")
+  })
+  outputOptions(output, "p_map", suspendWhenHidden = FALSE)
+
+  output$p_map_rank <- renderPlotly({
+    d <- map_data(); m <- map_spec()
+    validate(need(nrow(d) > 0, "No countries meet these filters."))
+    d <- arrange(d, desc(value))
+    d <- if (nrow(d) > 16) bind_rows(head(d, 8), tail(d, 8)) else d
+    d <- mutate(d, country = factor(country, levels = rev(country)))
+    # Pad the value axis so outside labels never run into the country names
+    lo <- min(0, d$value); hi <- max(0, d$value); pad <- (hi - lo) * .5
+    plot_ly(d, x = ~value, y = ~country, type = "bar", orientation = "h",
+            color = ~factor(income, levels = INC_LEV), colors = PAL_INC,
+            text = ~m$fmt(value), textposition = "outside", cliponaxis = FALSE,
+            hovertext = ~hover, hoverinfo = "text") |>
+      style_plotly(barmode = "overlay",
+                   xaxis = list(title = "", tickformat = m$axis, zeroline = TRUE,
+                                range = c(if (lo < 0) lo - pad else 0, hi + pad)),
+                   yaxis = list(title = "", automargin = TRUE),
+                   margin = list(l = 10, r = 10, t = 50, b = 10),
+                   legend = list(orientation = "h", x = 0, y = 1.02, yanchor = "bottom",
+                                 font = list(size = 10)))
+  })
+
+  # Click a country -> list its cities
+  map_iso <- reactiveVal(NULL)
+  observeEvent(suppressWarnings(event_data("plotly_click", source = "map")), {
+    ev <- suppressWarnings(event_data("plotly_click", source = "map"))
+    d <- map_data()
+    iso <- if (!is.null(ev$location)) ev$location else d$iso3[ev$pointNumber + 1]
+    if (length(iso) == 1 && iso %in% d$iso3) map_iso(iso)
+  })
+  observeEvent(map_data(), {                       # forget a country the filters removed
+    if (!is.null(map_iso()) && !map_iso() %in% map_data()$iso3) map_iso(NULL)
+  })
+
+  output$map_country_card <- renderUI({
+    iso <- map_iso()
+    if (is.null(iso)) return(NULL)
+    r <- filter(country_agg(), iso3 == iso)
+    card(
+      full_screen = TRUE,
+      card_header(sprintf("%s: cities in the current selection", r$country)),
+      p(class = "px-3 mb-0", sprintf(
+        "%d cities (%d with hospital data). %s of scored residents live within 1 km of a hospital. Click a row to open the city profile.",
+        r$n_frame, r$n_scored, pct(r$access_w))),
+      reactableOutput("t_map_cities")
+    )
+  })
+
+  output$t_map_cities <- renderReactable({
+    iso <- req(map_iso())
+    d <- filt() |> filter(iso3 == iso) |> arrange(desc(pop)) |>
+      transmute(id, City = city, Pop = pop, Observed = hosp_share_1km,
+                Peers = peer_median, Verdict = as.character(verdict))
+    reactable(
+      d, compact = TRUE, striped = TRUE, highlight = TRUE, defaultPageSize = 8,
+      onClick = JS("function(rowInfo) { Shiny.setInputValue('map_city', rowInfo.row.id, {priority: 'event'}) }"),
+      columns = list(
+        id = colDef(show = FALSE),
+        City = colDef(minWidth = 150),
+        Pop = colDef(name = "Population", format = colFormat(separators = TRUE, digits = 0)),
+        Observed = colDef(name = "Within 1 km", format = colFormat(percent = TRUE, digits = 0),
+                          na = "–"),
+        Peers = colDef(name = "Peer median", format = colFormat(percent = TRUE, digits = 0),
+                       na = "–"),
+        Verdict = colDef(style = function(v) list(color = PAL_VER[[v]], fontWeight = 600))
+      ))
+  })
+
+  observeEvent(input$map_city, {
+    updateSelectizeInput(session, "city", choices = city_choices,
+                         selected = input$map_city, server = TRUE)
+    nav_select("main", "city_tab")
   })
 
   # ---- Your City ----

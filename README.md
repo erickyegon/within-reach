@@ -23,22 +23,27 @@ within-reach/
 │   ├── 02_clean.R             # names, factors, unique labels, rates, data-quality audit
 │   ├── 03_process.R           # density bands, confidence grades, peer groups, verdicts
 │   ├── 04_analysis.R          # bootstrap CIs, median regressions, coverage, leaderboards
-│   ├── 05_static_dashboard.R  # one-page shareable poster (patchwork)
-│   └── 06_export_app_data.R   # packages a small .rds for the app
+│   ├── 05_map_data.R          # ISO-3 codes + country summary (map tab and poster)
+│   ├── 06_static_dashboard.R  # one-page shareable poster (patchwork)
+│   └── 07_export_app_data.R   # packages a small .rds for the app
 ├── app/
-│   ├── app.R                  # bslib Shiny app (5 tabs)
+│   ├── app.R                  # bslib Shiny app (6 tabs)
 │   └── data/app_data.rds      # built by run_all.R
 └── output/figures/within_reach_poster.png
 ```
 
 Each script sources its predecessor, so you can run any step on its own.
 
+## The World Map tab
+
+A country-level choropleth with four lenses: **Beats the odds?** (median gap against comparable cities), **Walking access** (population-weighted share within 1 km), **Hospitals per 100k**, and **Data coverage**. It follows the sidebar filters, has a minimum-cities slider so small countries do not dominate, ranks the highest and lowest countries, and clicking a country lists its cities (click a city to open its profile). The source data has no coordinates, so the map is national rather than city-level; country names are converted to ISO-3 codes at build time in `05_map_data.R`, so the app needs no extra packages.
+
 ## Run it
 
 ```r
 install.packages(c("readr", "dplyr", "tidyr", "stringr", "forcats", "purrr",
                    "ggplot2", "scales", "patchwork", "quantreg",
-                   "shiny", "bslib", "bsicons", "plotly", "reactable"))
+                   "countrycode", "sf", "rnaturalearth", "rnaturalearthdata", "shiny", "bslib", "bsicons", "plotly", "reactable"))
 
 source("run_all.R")      # from the project root; about 15 seconds
 shiny::runApp("app")

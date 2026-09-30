@@ -1,15 +1,16 @@
 # =============================================================================
-# 05_static_dashboard.R — One-page shareable poster for #TidyTuesday
+# 06_static_dashboard.R — One-page shareable poster for #TidyTuesday
 # -----------------------------------------------------------------------------
-# Four panels, one argument:
+# Five panels, one argument:
 #   A  Money buys facilities
 #   B  ...but not walking access, until you compare like with like
 #   C  The like-with-like view (income x density)
 #   D  The map is least complete where it matters most
+#   E  World map: which countries beat the odds, and which fall short
 # =============================================================================
 
-if (!exists("findings")) source("R/04_analysis.R")   # skip if already run
-suppressPackageStartupMessages({ library(patchwork) })
+if (!exists("findings") || is.null(findings$map)) source("R/05_map_data.R")   # skip if already run
+suppressPackageStartupMessages({ library(patchwork); library(sf); library(rnaturalearth) })
 
 f  <- findings
 bi <- f$by_income |> filter(income_label %in% INCOME_LEVELS) |>
@@ -89,8 +90,63 @@ pD <- f$coverage_income |>
        x = NULL, y = NULL) +
   theme_reach(11)
 
+# --- E. World map: median gap against comparable cities ----------------------------
+# Same definition as the app's "Beats the odds?" lens. Countries with fewer than
+# POSTER_MIN_SCORED scored cities are left grey rather than shown as noise. This is
+# stricter than the app's default (5) because a poster cannot be filtered.
+GAP_CAP <- 15               # colour scale is capped at +/- this many points
+POSTER_MIN_SCORED <- 10
+
+poster_map <- f$map$country_map |> filter(n_scored >= POSTER_MIN_SCORED)
+best_gap   <- poster_map |> arrange(desc(median_gap)) |> slice_head(n = 3)
+worst_gap  <- poster_map |> arrange(median_gap)       |> slice_head(n = 3)
+
+world <- ne_countries(scale = "medium", returnclass = "sf") |>
+  filter(continent != "Antarctica") |>
+  mutate(iso3 = if_else(adm0_a3 == "KOS", "XKX", iso_a3_eh))
+
+map_df <- world |>
+  left_join(f$map$country_map |>
+              mutate(gap = if_else(n_scored >= POSTER_MIN_SCORED, median_gap, NA_real_)) |>
+              select(iso3, gap), by = "iso3")
+
+names_of <- function(d) paste(d$country[1:3], collapse = ", ")
+names_n  <- function(d) paste(sprintf("%s %d", d$country[1:3], d$n_scored[1:3]), collapse = ", ")
+
+pE <- ggplot(map_df) +
+  geom_sf(aes(fill = gap), colour = "white", linewidth = .12) +
+  scale_fill_gradient2(
+    low = PAL_VERDICT[["Below expected"]], mid = "#EEF0F2", high = PAL_VERDICT[["Beats the odds"]],
+    midpoint = 0, limits = c(-GAP_CAP, GAP_CAP), oob = squish, na.value = "#D9D9D9",
+    name = "Median gap vs
+comparable cities
+(percentage points)",
+    breaks = c(-15, -10, -5, 0, 5, 10, 15),
+    labels = c("-15 or less", "-10", "-5", "0", "+5", "+10", "+15 or more"),
+    guide = guide_colourbar(barheight = unit(3.2, "cm"), barwidth = unit(.4, "cm"))) +
+  coord_sf(crs = "+proj=robin", expand = FALSE) +
+  labs(title = "E  Where cities beat the odds, and where they fall short",
+       subtitle = sprintf(paste0(
+         "Country median gap in 1 km hospital access vs peers of the same income group and density band. ",
+         "Grey = fewer than %d scored cities (%d of %d countries shown).
+",
+         "Furthest ahead: %s.  Furthest behind: %s."),
+         POSTER_MIN_SCORED, nrow(poster_map), nrow(f$map$country_map),
+         names_of(best_gap), names_of(worst_gap))) +
+  labs(caption = sprintf(paste0(
+         "Read with care: country medians rest on as few as %d scored cities, so extremes can still be noise. ",
+         "Country size is not shown.
+Scored cities behind the leaders: %s. Behind the laggards: %s."),
+         POSTER_MIN_SCORED, names_n(best_gap), names_n(worst_gap))) +
+  theme_reach(11) +
+  theme(axis.text = element_blank(), panel.grid = element_blank(),
+        legend.position = "right", legend.justification = "center",
+        plot.caption.position = "plot",
+        plot.caption = element_text(colour = "grey35", size = 9, hjust = 0, margin = margin(t = 6)))
+
 # --- Assemble ----------------------------------------------------------------------
-poster <- (pA | pB) / (pC | pD) +
+poster <- (pA | pB) / (pC | pD) / pE +
+  plot_layout(heights = c(1, 1, 1.15)) +
   plot_annotation(
     title = "Within Reach: money buys hospitals, compactness buys access",
     subtitle = paste0(
@@ -110,5 +166,5 @@ poster <- (pA | pB) / (pC | pD) +
   )
 
 ggsave("output/figures/within_reach_poster.png", poster,
-       width = 14, height = 10, dpi = 300, bg = "white")
+       width = 14, height = 14, dpi = 300, bg = "white")
 message("Saved output/figures/within_reach_poster.png")

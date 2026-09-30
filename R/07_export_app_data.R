@@ -1,14 +1,14 @@
 # =============================================================================
-# 06_export_app_data.R — Package exactly what the Shiny app needs
+# 07_export_app_data.R — Package exactly what the Shiny app needs
 # -----------------------------------------------------------------------------
 # The app never recomputes the heavy analysis. It loads one small .rds file,
 # so it starts fast and deploys cleanly (the app/ folder is self-contained).
 # =============================================================================
 
-if (!exists("findings")) source("R/04_analysis.R")   # skip if already run
+if (!exists("findings") || is.null(findings$map)) source("R/05_map_data.R")   # skip if already run
 
 app_cities <- cities |>
-  select(id, label, city, country, region, income_label, pop, area_km2, density,
+  select(id, label, city, country, iso3, region, income_label, pop, area_km2, density,
          density_band, size_band, in_frame, has_hosp, has_pharm, confidence,
          likely_map_gap, hosp_n, pharm_n, hosp_per_100k, pharm_per_100k,
          hosp_share_1km, pharm_share_1km, peer_group, peer_n, peer_median,
