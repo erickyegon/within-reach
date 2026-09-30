@@ -42,7 +42,7 @@ install.packages(c("readr", "dplyr", "tidyr", "stringr", "forcats", "purrr",
                    "ggplot2", "scales", "patchwork", "quantreg",
                    "countrycode", "sf", "rnaturalearth", "rnaturalearthdata", "shiny", "bslib", "bsicons", "plotly", "reactable"))
 
-source("run_all.R")      # from the project root; about 15 seconds
+source("run_all.R")      # from the project root; about 30 seconds
 shiny::runApp("app")
 ```
 

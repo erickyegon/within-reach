@@ -44,8 +44,8 @@ cities_clean <- cities_clean |>
   )
 
 # --- 2.3 Unique, human-readable labels for search -----------------------------
-# ~180 name+country pairs repeat (e.g., several "San Jose" centres in one
-# country). Append the population to disambiguate them in the search box.
+# 166 name+country pairs repeat, covering 346 centres (e.g., several "San Jose"
+# centres in one country). Append the population to disambiguate them in the search box.
 cities_clean <- cities_clean |>
   add_count(city, country, name = "name_dupes") |>
   mutate(

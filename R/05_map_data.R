@@ -5,7 +5,7 @@
 # names are converted to ISO-3 codes HERE (build time), so the deployed app
 # needs no extra packages: it only draws a plotly choropleth from `iso3`.
 #
-# Adds `iso3` to `cities` and a `map_findings` list to `findings`:
+# Adds `iso3` to `cities` and a `map` list to `findings` (findings$map):
 #   * country_map : one row per country, unfiltered (used for headlines/README)
 #   * the app re-aggregates from city rows so the sidebar filters still apply
 # =============================================================================

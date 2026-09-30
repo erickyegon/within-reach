@@ -1,7 +1,7 @@
 # =============================================================================
 # 04_analysis.R — Quantify the story, with uncertainty
 # -----------------------------------------------------------------------------
-# Findings produced here feed both the static poster (05) and the app (06).
+# Findings produced here feed the map data (05), the poster (06) and the app (07).
 #   F1  Money buys facilities       (hospitals per 100k rise with income)
 #   F2  ...but not walking access   (raw access share does NOT rise)
 #   F3  Compactness is the hidden   (compare like-with-like density and
