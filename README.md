@@ -12,6 +12,8 @@ A #TidyTuesday (2026, week 39) analysis of hospital and pharmacy access in 11,42
 3. **Compare like with like and the ranking flips.** At equal density and size, high-income cities reach 32% vs 24% for low-income cities (median regression). Adding UN region reverses it again, because income and region are tightly entangled; this is reported, not hidden.
 4. **The map is thinnest where need is likely greatest.** Pharmacy data exist for 8% of low-income cities vs 77% of high-income ones. Hong Kong (4.8M people) has no hospital data at all.
 
+**On the map (poster panel E, and the app's World Map tab):** among the 65 countries with 10+ scored cities, Cuba, Ecuador and Ukraine do best against comparable cities, and Zambia, Iraq and South Africa fall furthest short. Country medians can still be noisy. On the poster the other 111 countries are grey for too few scored cities; in the app you can change that threshold with the slider.
+
 ## Project structure
 
 ```
