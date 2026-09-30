@@ -95,7 +95,7 @@ pD <- f$coverage_income |>
 # POSTER_MIN_SCORED scored cities are left grey rather than shown as noise. This is
 # stricter than the app's default (5) because a poster cannot be filtered.
 GAP_CAP <- 15               # colour scale is capped at +/- this many points
-POSTER_MIN_SCORED <- 10
+POSTER_MIN_SCORED <- f$map$strict_min
 
 poster_map <- f$map$country_map |> filter(n_scored >= POSTER_MIN_SCORED)
 best_gap   <- poster_map |> arrange(desc(median_gap)) |> slice_head(n = 3)
@@ -159,7 +159,7 @@ poster <- (pA | pB) / (pC | pD) / pE +
       "Data: GHS Urban Centre Database R2024A, European Commission JRC (#TidyTuesday 2026 wk 39). ",
       "Medians with bootstrap 95% CIs; adjusted values from median regression on logit access, log density, log population.\n",
       "Caveats: a 1 km straight-line buffer is not travel time; a mapped facility is not proof of quality or functioning; ",
-      "missing is not zero. Associations, not causes.  |  Analysis: Erick K. Yegon"),
+      "missing is not zero. Associations, not causes.  |  Analysis & graphics: Erick K. Yegon (github.com/erickyegon)"),
     theme = theme_reach(12) +
       theme(plot.title = element_text(size = 20, face = "bold"),
             plot.subtitle = element_text(size = 11.5, lineheight = 1.15))

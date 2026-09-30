@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this analysis, please cite it as below."
+title: "Within Reach: hospital access in 11,422 urban centres"
+type: software
+authors:
+  - family-names: Yegon
+    given-names: Erick K.
+repository-code: "https://github.com/erickyegon/within-reach"
+date-released: 2026-09-29
+keywords:
+  - TidyTuesday
+  - hospital access
+  - urban health
+  - Shiny
+abstract: >-
+  Money buys hospitals; compactness buys access. An analysis of hospital and
+  pharmacy access in urban centres using the GHS Urban Centre Database R2024A
+  (European Commission JRC), with a Shiny app and poster.

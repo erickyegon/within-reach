@@ -89,6 +89,15 @@ caveat <- function(...) {
   div(class = "small text-muted mt-2", bs_icon("info-circle"), " ", ...)
 }
 
+# Attribution shown under every chart, so a screenshot carries its source and author
+AUTHOR <- "Erick K. Yegon"
+cite_footer <- function() {
+  card_footer(class = "small text-muted py-1",
+              "Analysis: ", AUTHOR, " · Data: GHS Urban Centre Database R2024A (EC JRC) · #TidyTuesday 2026 wk 39")
+}
+# A card that always ends with the attribution footer
+chart_card <- function(..., full_screen = TRUE) card(..., full_screen = full_screen, cite_footer())
+
 # ---- Theme ------------------------------------------------------------------------
 theme <- bs_theme(
   version = 5,
@@ -153,22 +162,22 @@ ui <- page_navbar(
     ),
     layout_columns(
       col_widths = c(6, 6),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("1. Money buys facilities"),
            plotlyOutput("p_h100", height = 300),
            caveat("Median hospitals per 100,000 residents. Hover for the number of cities.")),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("2. ...but not walking access"),
            plotlyOutput("p_raw", height = 300),
            caveat("Median share of residents within 1 km (straight line) of a hospital."))
     ),
     layout_columns(
       col_widths = c(6, 6),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("3. Compare like with like: access rises with income within each density band"),
            plotlyOutput("p_band", height = 340),
            caveat("Bands are density quintiles. Groups with fewer than 15 cities are hidden.")),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("4. Compactness is the hidden variable"),
            plotlyOutput("p_density", height = 340),
            caveat("Each dot is a city. Low-income cities are about 2.6 times as dense as high-income cities."))
@@ -184,7 +193,7 @@ ui <- page_navbar(
       tags$b("Click any dot to open that city's profile.")),
     layout_columns(
       col_widths = c(7, 5),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("Observed vs expected access"),
            plotlyOutput("p_odds", height = 470),
            caveat(sprintf(paste("Expected = median-regression prediction from income, density and size.",
@@ -218,15 +227,20 @@ ui <- page_navbar(
     ),
     layout_columns(
       col_widths = c(7, 5),
-      card(full_screen = TRUE,
+      chart_card(
            card_header(textOutput("map_title", inline = TRUE)),
            plotlyOutput("p_map", height = 420),
            uiOutput("map_blurb")),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("Highest and lowest countries"),
            plotlyOutput("p_map_rank", height = 420),
            caveat("Bars are coloured by the country's most common income group. ",
                   "Small countries swing widely; raise the minimum cities to steady the ranking."))
+    ),
+    chart_card(
+      card_header("Is the pattern regional?"),
+      plotlyOutput("p_map_region", height = 300),
+      uiOutput("map_region_note")
     ),
     uiOutput("map_country_card")
   ),
@@ -254,7 +268,7 @@ ui <- page_navbar(
       "or the reverse? Read with care: pharmacy data exist for only a small share of lower-income cities."),
     layout_columns(
       col_widths = c(7, 5),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("Four kinds of city"),
            plotlyOutput("p_quad", height = 480),
            caveat("Lines mark the medians among cities where both services are observed.")),
@@ -270,7 +284,7 @@ ui <- page_navbar(
     "Data Gaps & Methods", icon = bs_icon("clipboard-data"),
     layout_columns(
       col_widths = c(7, 5),
-      card(full_screen = TRUE,
+      chart_card(
            card_header("Where is the map incomplete?"),
            plotlyOutput("p_cov", height = 380),
            caveat("Share of cities (pop. 100k+) with any recorded hospital access data.")),
@@ -504,6 +518,7 @@ server <- function(input, output, session) {
       group_by(iso3) |>                      # Cyprus + Northern Cyprus share one code
       summarise(
         country     = names(which.max(table(country))),
+        region      = names(which.max(table(region))),
         n_frame     = n(),
         n_scored    = sum(has_hosp),
         coverage    = n_scored / n_frame,
@@ -572,6 +587,36 @@ server <- function(input, output, session) {
                    legend = list(orientation = "h", x = 0, y = 1.02, yanchor = "bottom",
                                  font = list(size = 10)))
   })
+
+  # Regional pattern in the gap (always the gap, whichever lens is showing)
+  output$p_map_region <- renderPlotly({
+    d <- country_agg() |>
+      filter(n_scored >= input$map_min, !is.na(median_gap)) |>
+      group_by(region) |>
+      summarise(n = n(), gap = median(median_gap), ahead = mean(median_gap > 0), .groups = "drop") |>
+      filter(n >= 3) |>
+      arrange(gap) |>
+      mutate(region = factor(region, levels = region))
+    validate(need(nrow(d) > 0, "Too few countries in the current selection."))
+    plot_ly(d, x = ~gap, y = ~region, type = "bar", orientation = "h",
+            marker = list(color = ifelse(d$gap >= 0, PAL_VER[["Beats the odds"]], PAL_VER[["Below expected"]])),
+            text = ~sprintf("%+.1f pts", gap), textposition = "outside", cliponaxis = FALSE,
+            hovertemplate = paste0("%{y}<br>Median gap %{x:+.1f} pts<br>",
+                                   "%{customdata[0]} countries, %{customdata[1]:.0%} ahead of peers<extra></extra>"),
+            customdata = ~cbind(n, ahead)) |>
+      style_plotly(xaxis = list(title = "Median country gap vs comparable cities (percentage points)",
+                                zeroline = TRUE, range = c(min(-2, min(d$gap) * 1.5), max(2, max(d$gap) * 1.4))),
+                   yaxis = list(title = "", automargin = TRUE))
+  })
+
+  output$map_region_note <- renderUI(caveat(
+    sprintf(paste("The gap already allows for income and density, so a regional pattern is something",
+                  "wealth and compactness do not explain. Read it with two cautions: better-mapped countries",
+                  "tend to score higher (Spearman %.2f between a country's gap and its data coverage), so part",
+                  "of the gap reflects mapping completeness, not access; and a country explains only %.0f%% of",
+                  "the variation in city-level gaps, so the national map hides most of the story.",
+                  "Regions with fewer than 3 countries are hidden."),
+            F$map$cor_gap_coverage, F$map$r2_country * 100)))
 
   # Click a country -> list its cities
   map_iso <- reactiveVal(NULL)
@@ -716,8 +761,7 @@ server <- function(input, output, session) {
                   if (!is.na(c1$quadrant)) c1$quadrant else "pharmacy data missing",
                   showcase = bs_icon("capsule"))
       ),
-      if (!is.na(c1$peer_group)) card(
-        full_screen = TRUE,
+      if (!is.na(c1$peer_group)) chart_card(
         card_header(paste("Where", c1$city, "sits among its peers")),
         plotOutput("p_peers", height = 240),
         caveat("Each tick is one peer city. Shaded band = middle 60% (as expected).")
@@ -766,7 +810,7 @@ server <- function(input, output, session) {
       g <- g + labs(
         title = paste0(c1$city, ", ", c1$country, ":  ", c1$verdict),
         subtitle = paste(strwrap(body, 95), collapse = "\n"),
-        caption = "Within Reach · GHS Urban Centre Database R2024A (EC JRC) · #TidyTuesday · github.com/erickyegon"
+        caption = "Within Reach · Analysis: Erick K. Yegon · GHS Urban Centre Database R2024A (EC JRC) · #TidyTuesday 2026 wk 39 · github.com/erickyegon"
       ) + theme(plot.title = element_text(face = "bold", size = 20,
                                           colour = PAL_VER[[as.character(c1$verdict)]]),
                 plot.subtitle = element_text(size = 12, lineheight = 1.2, colour = "grey25"),
