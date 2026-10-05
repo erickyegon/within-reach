@@ -81,4 +81,4 @@ Yegon, E. K. (2026). *Within Reach: hospital access in 11,422 urban centres* (#T
 Every chart in the app, the poster and the downloadable city cards carries this attribution.
 
 ---
-Analysis and graphics: Erick K. Yegon · github.com/erickyegon · linkedin.com/in/erickyegon
+Author: Erick Kiprotich Yegon, epidemiologist and data scientist (real-world evidence, HEOR, causal inference) · Portfolio: https://erickyegon.github.io · LinkedIn: https://linkedin.com/in/erickyegon
